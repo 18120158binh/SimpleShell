@@ -1,4 +1,5 @@
 #include<stdio.h>
+#include<stdio.h>
 #include<unistd.h>
 #include<string.h>
 #include<stdlib.h>
@@ -65,8 +66,7 @@ int main() {
     char cmd[30];
     char** argv = NULL;
     printf("\nWelcome to My Simple Shell ~ ~ ~\n\n");
-    while (1) {
-
+    while (1){
         printf("My Shell > ");
         fflush(stdin);
         fgets(cmd, sizeof(cmd), stdin);
