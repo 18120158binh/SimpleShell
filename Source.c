@@ -13,6 +13,35 @@
 char* History = NULL;
 int need_to_wait = 1;
 
+//ham xoa 
+//mac dinh la xoa whitespace o dau va cuoi chuoi nhu " \n\t\r\a"
+//neu co gan c vao thi xoa ki tu do o CUOI CHUOI (viet chu yeu dung de xoa ki tu & cuoi cau trong chuoi)
+void delete_white_space_or_character(char* str, char c)
+{
+    int i;
+    int begin = 0, end = strlen(str) - 1;
+    if (c == '\0')
+    {
+        while ((str[begin] == ' ' || str[begin] == '\n' || str[begin] == '\t' || str[begin] == '\a' || str[begin] == '\r') && (begin < end))
+        {
+            begin++;
+        }
+        while ((end >= begin) && (str[end] == ' ' || str[end] == '\n' || str[end] == '\t' || str[end] == '\a' || str[end] == '\r'))
+        {
+            end--;
+        }
+    }
+    else end--;//neu muon xoa ki tu c o cuoi chuoi
+
+
+    for (i = begin; i <= end; i++)
+    {
+        str[i - begin] = str[i];
+    }
+    str[i - begin] = '\0';
+
+}
+
 void Exec_NormalCommand(char* Command, char** Argv) {
     pid_t pid = fork();
     if (pid < 0)
@@ -106,12 +135,70 @@ void Redirect_Output(char** Command, char** FileName) {
     }
 }
 
+void execPipe(char** Argv1, char** Argv2) {
+    pid_t pid1, pid2;
+    int pipes[2];
+
+    if (pipe(pipes) < 0) {
+        printf("*** ERROR: Pipe failed\n");
+        exit(EXIT_FAILURE);
+    }
+
+    pid1 = fork();
+    if (pid1 < 0)
+    {
+        printf("*** ERROR: forking child process failed\n");
+        exit(EXIT_FAILURE);
+    }
+    if (pid1 == 0)
+    {
+        pid2 = fork();
+        if (pid2 < 0)
+        {
+            printf("*** ERROR: forking child process failed\n");
+            exit(EXIT_FAILURE);
+        }
+        if (pid2 == 0)
+        {
+            close(pipes[1]);
+            if(dup2(pipes[0], STDIN_FILENO) < 0) {
+                printf("*** ERROR: Unable to duplicate.\n");
+                exit(EXIT_FAILURE);
+            }
+            close(pipes[0]);
+            execvp(Argv2[0], Argv2);
+            printf("*** ERROR: INVALID COMMAND\n");
+            exit(EXIT_FAILURE);
+        }
+        close(pipes[0]);
+        if(dup2(pipes[1], STDOUT_FILENO) < 0){
+            printf("*** ERROR: Unable to duplicate.\n");
+            exit(EXIT_FAILURE);
+        }
+        close(pipes[1]);
+        execvp(Argv1[0], Argv1);
+        printf("*** ERROR: INVALID COMMAND\n");
+        exit(EXIT_FAILURE);
+    }
+    close(pipes[0]);
+    close(pipes[1]);
+    //parent process
+    if (need_to_wait)
+    {
+        while (wait(NULL) != pid1 && wait(NULL) != pid2);
+     }
+     else {
+        printf("[1]%d\n", pid1);
+	//printf("[1]%d\n", pid2);
+     }
+}
+
 int CheckCommand(char* s) {
     int s_length = strlen(s) - 1;
     int i;
     for (i = 0; i < s_length; i++) {
-        if (s[i] == '>') return 2;
-        if (s[i] == '<') return 1;
+	if (s[i] == '<') return 1;	
+	if (s[i] == '>') return 2;
         if (s[i] == '|') return 3;
     }
     return 0;
@@ -132,10 +219,12 @@ char** parse(char* Comamnd)
         exit(EXIT_FAILURE);
     }
 
-    token = strtok(Comamnd, "<>");
+    token = strtok(Comamnd, "<>|");
+    delete_white_space_or_character(token, '\0');
     tokenArr[0] = token;
 
     token = strtok(NULL, "\0");
+    delete_white_space_or_character(token, '\0');
     tokenArr[1] = token;
     tokenArr[2] = NULL;
 
@@ -185,9 +274,8 @@ char** parseSpace(char* line)
 
 void Delete_invalidCharacter(char* s) {
     int s_length = strlen(s) - 1;
-    if (s[s_length] == '\n' || s[s_length] == ' ')
+    if (s[s_length] == '\n')
         s[s_length] = '\0';
-    if(s[0] == ' ') s = strtok(s, " ");
 }
  
 
@@ -228,25 +316,23 @@ int main() {
         }
 
         int TypeCmd = CheckCommand(cmd);
-        if (TypeCmd == 1) {
-            argv = parse(cmd);
-            Delete_invalidCharacter(argv[0]);
-            argv1 = parseSpace(argv[0]);
-            Delete_invalidCharacter(argv[1]);
-            argv2 = parseSpace(argv[1]);
-            Redirect_Input(argv1, argv2);
-        }
-        if (TypeCmd == 2) {
-            argv = parse(cmd);
-            Delete_invalidCharacter(argv[0]);
-            argv1 = parseSpace(argv[0]);
-            Delete_invalidCharacter(argv[1]);
-            argv2 = parseSpace(argv[1]);
-            Redirect_Output(argv1, argv2);
-        }
-        if (TypeCmd == 0) {
+	if (TypeCmd == 0) {
             argv1 = parseSpace(cmd);
             Exec_NormalCommand(cmd, argv1);
+        }
+        else {
+            argv = parse(cmd);
+            argv1 = parseSpace(argv[0]);
+            argv2 = parseSpace(argv[1]);
+            if (TypeCmd == 1) {
+                Redirect_Input(argv1, argv2);
+            }
+            if (TypeCmd == 2) {
+                Redirect_Output(argv1, argv2);
+            }
+            if (TypeCmd == 3) {
+                execPipe(argv1, argv2);
+            }
         }
     }
 }
