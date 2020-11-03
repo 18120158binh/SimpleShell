@@ -39,9 +39,9 @@ void delete_white_space_or_character(char* str, char c)
         str[i - begin] = str[i];
     }
     str[i - begin] = '\0';
-
 }
 
+//Ham thuc thi lenh binh thuong
 void Exec_NormalCommand(char* Command, char** Argv) {
     pid_t pid = fork();
     if (pid < 0)
@@ -67,6 +67,7 @@ void Exec_NormalCommand(char* Command, char** Argv) {
     }
 }
 
+//Ham Redirecting input
 void Redirect_Input(char** Command, char** FileName) {
     pid_t pid = fork();
     if (pid < 0)
@@ -101,6 +102,7 @@ void Redirect_Input(char** Command, char** FileName) {
     }
 }
 
+//Ham Redirecting output
 void Redirect_Output(char** Command, char** FileName) {
     pid_t pid = fork();
     if (pid < 0)
@@ -135,15 +137,15 @@ void Redirect_Output(char** Command, char** FileName) {
     }
 }
 
+//Ham thuc thi Communication via a pipe
 void execPipe(char** Argv1, char** Argv2) {
-    pid_t pid1, pid2;
     int pipes[2];
 
     if (pipe(pipes) < 0) {
         printf("*** ERROR: Pipe failed\n");
         exit(EXIT_FAILURE);
     }
-
+    pid_t pid1, pid2;
     pid1 = fork();
     if (pid1 < 0)
     {
@@ -152,6 +154,7 @@ void execPipe(char** Argv1, char** Argv2) {
     }
     if (pid1 == 0)
     {
+	//Tao tien trinh con thu 2
         pid2 = fork();
         if (pid2 < 0)
         {
@@ -188,11 +191,11 @@ void execPipe(char** Argv1, char** Argv2) {
         while (wait(NULL) != pid1 && wait(NULL) != pid2);
      }
      else {
-        printf("[1]%d\n", pid1);
-	//printf("[1]%d\n", pid2);
+            printf("[1]%d\n", pid1);
      }
 }
 
+//Ham kiem tra loai cua lenh command
 int CheckCommand(char* s) {
     int s_length = strlen(s) - 1;
     int i;
@@ -204,14 +207,13 @@ int CheckCommand(char* s) {
     return 0;
 }
 
-//ham tach cau lenh thanh token theo white space DELIM
-#define TOKEN_BUFSIZE 64
+//ham phan tach chuoi input dau vao theo ki tu < > |
 char** parse(char* Comamnd)
 {
-    int bufSize = TOKEN_BUFSIZE;
+    int bufSize = 100;
     int pos = 0;
     char* token;
-    char** tokenArr = (char**)malloc(sizeof(char*) * bufSize);
+    char** tokenArr = (char**)malloc(sizeof(char*) * 100);
 
     if (!tokenArr)
     {
@@ -231,19 +233,43 @@ char** parse(char* Comamnd)
     return tokenArr;
 }
 
-//ham tach cau lenh thanh token theo white space DELIM
-#define TOKEN_BUFSIZE 64
+//Ham chuan hoa chuoi (bo dau "")
+char* Normalization(char* s) {
+	int n = strlen(s) - 1;
+	int signal = 0;
+	int i = 0;
+	int j = 0;
+	int k = 0;
+	char* temp = (char*)malloc(sizeof(char) * 30) ;
+	for (i = 0; i < n; i++) {
+		if (s[i] == '"') {
+			signal = 1;
+			i++;
+			k++;
+		}
+		if (k == 2) signal = 0;
+		if (signal == 1) {
+			temp[j] = s[i];
+			j++;
+		}
+	}
+	temp[j] = '\0';
+	return temp;
+}
+
+//Ham phan tach chuoi input dau vao theo khoang trang
 #define DELIM " \t\r\n\a"
 char** parseSpace(char* line)
 {
-    int bufSize = TOKEN_BUFSIZE;
-    int pos = 0;
+    int i = 0;
     char* token;
-    char** tokenArr = (char**)malloc(sizeof(char*) * bufSize);
+    char* temp = (char*)malloc(sizeof(char) * 30);
+    strcpy(temp, line);
+    char** tokenArr = (char**)malloc(sizeof(char*) * 100);
 
     if (!tokenArr)
     {
-        perror("alloction error");
+        printf("*** ERROR: Allocation Error!\n");
         exit(EXIT_FAILURE);
     }
 
@@ -251,23 +277,26 @@ char** parseSpace(char* line)
 
     while (token != NULL)
     {
-        tokenArr[pos] = token;
-        pos++;
-
-        if (pos >= bufSize)
+        tokenArr[i] = token;
+        i++;
+        if (strcmp(token, "grep") == 0 || strcmp(token, "echo") == 0)
         {
-            bufSize += TOKEN_BUFSIZE;
-            tokenArr = (char**)realloc(tokenArr, bufSize * sizeof(char*));
+            tokenArr[i] = Normalization(temp);
+	    i++;
+            break;
+        }
+        if (i >= 100)
+        {
+            tokenArr = (char**)realloc(tokenArr, 150 * sizeof(char*));
             if (!tokenArr)
             {
-                printf("Allocation Error");
+                printf("*** ERROR: Allocation Error!\n");
                 exit(EXIT_FAILURE);
             }
         }
         token = strtok(NULL, DELIM);
-
     }
-    tokenArr[pos] = NULL;
+    tokenArr[i] = NULL;
 
     return tokenArr;
 }
@@ -280,7 +309,7 @@ void Delete_invalidCharacter(char* s) {
  
 
 int main() {
-    char cmd[30];
+    char cmd[100];
     char** argv = NULL;
     char** argv1 = NULL;
     char** argv2 = NULL;
@@ -288,6 +317,7 @@ int main() {
     while (1) {
 
         printf("My Shell > ");
+	fflush(stdin);
         fgets(cmd, sizeof(cmd), stdin);
 
         Delete_invalidCharacter(cmd);
