@@ -10,11 +10,96 @@
 #include <ctype.h>
 #include <stdbool.h>
 
-char* History = NULL;
+#define BuffSize 100
 int need_to_wait = 1;
+char** History; 
+int pos = 0;
+void initHistory()
+{
+    History = (char**)realloc(NULL, sizeof(char*) * BuffSize);
+}
+int Test(char* cmd)//kiểm tra câu lệnh có trùng với câu lệnh cuối cùng được ghi nhận hay không
+{
+	if (pos > 0)//chỉ xét khi lịch sử đã lưu 1 câu lệnh
+	{
+	    if (strcmp(History[pos - 1], cmd) == 0)
+		return 1;
+	}
+	return 0;
+}
 
-//ham xoa 
-//mac dinh la xoa whitespace o dau va cuoi chuoi nhu " \n\t\r\a"
+void HistoryFeature(char* cmd)
+{
+	int j;
+	if (Test(cmd) == 1)//nếu trùng với câu lệnh trước thì không cần lưu
+		return;
+	if (strcmp(cmd, "\0") == 0)//không lưu câu lệnh rỗng
+		return;
+	if(strcmp(cmd, "!!") != 0 && cmd[0] != '!'){
+	History[pos] = (char*)malloc(100);
+	strcpy(History[pos], cmd);
+	pos++;}
+	if (cmd[0] == '!')//nếu câu lệnh là thực thi 1 câu lệnh trước đó hoặc tại dòng nào đó trong history
+	{
+		if (strcmp(cmd, "!!") == 0)//nếu là câu lệnh thực thi câu lệnh trước đó
+		{
+		// History[i] đang null, History[i-1] chứa lệnh ii, History[i-2] chứa câu lệnh cần thực thi
+			if (pos > 0){
+				strcpy(cmd, History[pos - 1]);
+               			printf("My Shell > ");
+                		printf(cmd);
+                		printf("\n");}
+			else//trường hợp i<=1 là khi history chưa ghi nhận bất cứ câu lệnh nào cả
+				printf("NO COMMAND IN HISTORY!\n");
+		}
+		else
+		{
+			int n = 0;//để lưu giá trị dòng cần lấy câu lệnh
+			int k = 1;//để tính toán k=k*10
+			for (j = strlen(cmd) - 1; j > 0; j--)
+			{
+				if (cmd[j] >= '0' && cmd[j] <= '9')//nếu kí tự đang xét thuộc (0,9)
+				{
+					n = n + (cmd[j] - '0') * k;
+					k = k * 10;
+				}
+				else//nếu có kí tự khác số thì đây không phải câu lệnh thực thi tại 1 dòng trong history
+				{
+					return;
+				}
+			}
+			if(n >= pos) {
+				printf("NOT EXIST!\n");
+				return;
+			}
+			History[pos] = (char*)malloc(100);
+			strcpy(History[pos], History[n - 1]);
+			pos++;
+			strcpy(cmd, History[n - 1]);
+                	printf("My Shell > ");
+                	printf(cmd);
+                	printf("\n");
+		}
+	}
+	if(strcmp(cmd, "history") == 0)//history là in ra toàn bộ câu lệnh được ghi nhận
+	{
+		if (History == NULL)
+		{
+			printf("NO COMMAND IN HISTORY!\n");
+		}
+		else
+		{
+			for (j = 0; j < pos; j++)
+			{
+				printf(" %d ", j + 1);
+				printf("%s", History[j]);
+				printf("\n");
+			}
+		}
+	}
+}
+
+//Xoa khoang trang o dau va cuoi chuoi nhu " \n\t\r\a"
 //neu co gan c vao thi xoa ki tu do o CUOI CHUOI (viet chu yeu dung de xoa ki tu & cuoi cau trong chuoi)
 void delete_white_space_or_character(char* str, char c)
 {
@@ -314,6 +399,7 @@ int main() {
     char** argv = NULL;
     char** argv1 = NULL;
     char** argv2 = NULL;
+    initHistory();
     printf("\nWelcome to My Simple Shell ~ ~ ~\n\n");
     while (1) {
 
@@ -326,25 +412,8 @@ int main() {
         if (cmd[0] == '\0') continue;
         if (strcmp(cmd, "exit") == 0) break;
 
-        if (strcmp(cmd, "!!") != 0 && cmd[0] != (char)'\0') {
-            if (History != NULL) free(History);
-            History = (char*)malloc(strlen(cmd) + 1);
-            strcpy(History, cmd);
-        }
-
-        if (strcmp(cmd, "!!") == 0) {
-            if (History == NULL) {
-                printf("No command in history!\n");
-                continue;
-            }
-            else
-            {
-                strcpy(cmd, History);
-                printf("My Shell > ");
-                printf(cmd);
-                printf("\n");
-            }
-        }
+	HistoryFeature(cmd);
+	if (strcmp(cmd, "history") == 0 || strcmp(cmd, "!!") == 0 || cmd[0] == '!') continue;
 
         int TypeCmd = CheckCommand(cmd);
 	if (TypeCmd == 0) {
