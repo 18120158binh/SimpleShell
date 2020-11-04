@@ -139,60 +139,54 @@ void Redirect_Output(char** Command, char** FileName) {
 
 //Ham thuc thi Communication via a pipe
 void execPipe(char** Argv1, char** Argv2) {
-    int pipes[2];
+    int pipefd[2];
 
-    if (pipe(pipes) < 0) {
+    if (pipe(pipefd) < 0) {
         printf("*** ERROR: Pipe failed\n");
         exit(EXIT_FAILURE);
     }
     pid_t pid1, pid2;
-    pid1 = fork();
-    if (pid1 < 0)
-    {
+      
+    pid1 = fork(); 
+    if (pid1 < 0) { 
         printf("*** ERROR: forking child process failed\n");
         exit(EXIT_FAILURE);
-    }
-    if (pid1 == 0)
-    {
-	//Tao tien trinh con thu 2
-        pid2 = fork();
-        if (pid2 < 0)
-        {
-            printf("*** ERROR: forking child process failed\n");
-            exit(EXIT_FAILURE);
-        }
-        if (pid2 == 0)
-        {
-            close(pipes[1]);
-            if(dup2(pipes[0], STDIN_FILENO) < 0) {
-                printf("*** ERROR: Unable to duplicate.\n");
-                exit(EXIT_FAILURE);
-            }
-            close(pipes[0]);
-            execvp(Argv2[0], Argv2);
+    } 
+    if (pid1 == 0) { 
+        // Child 1 executing.. 
+        // It only needs to write at the write end 
+        close(pipefd[0]); 
+        dup2(pipefd[1], STDOUT_FILENO); 
+        close(pipefd[1]); 
+        if (execvp(Argv1[0], Argv1) < 0) { 
             printf("*** ERROR: INVALID COMMAND\n");
             exit(EXIT_FAILURE);
-        }
-        close(pipes[0]);
-        if(dup2(pipes[1], STDOUT_FILENO) < 0){
-            printf("*** ERROR: Unable to duplicate.\n");
-            exit(EXIT_FAILURE);
-        }
-        close(pipes[1]);
-        execvp(Argv1[0], Argv1);
-        printf("*** ERROR: INVALID COMMAND\n");
+        } 
+    } 
+      
+    pid2 = fork();
+    if (pid2 < 0) { 
+        printf("*** ERROR: forking child process failed\n");
         exit(EXIT_FAILURE);
-    }
-    close(pipes[0]);
-    close(pipes[1]);
-    //parent process
-    if (need_to_wait)
-    {
-        while (wait(NULL) != pid1 && wait(NULL) != pid2);
-     }
-     else {
-            printf("[1]%d\n", pid1);
-     }
+    } 
+  
+    // Child 2 executing.. 
+    // It only needs to read at the read end 
+    if (pid2 == 0) { 
+        close(pipefd[1]); 
+        dup2(pipefd[0], STDIN_FILENO); 
+        close(pipefd[0]); 
+        if (execvp(Argv2[0], Argv2) < 0) { 
+            printf("*** ERROR: INVALID COMMAND\n"); 
+            exit(EXIT_FAILURE); 
+        } 
+    } 
+    
+    close(pipefd[0]); 
+    close(pipefd[1]); 
+    // parent executing, waiting for two children
+    waitpid(pid1, NULL, 0); 
+    waitpid(pid2, NULL, 0); 
 }
 
 //Ham kiem tra loai cua lenh command
@@ -233,21 +227,15 @@ char** parse(char* Comamnd)
     return tokenArr;
 }
 
-//Ham chuan hoa chuoi (bo dau "")
+//Ham tra ve toan bo chuoi sau lenh grep/echo
 char* Normalization(char* s) {
-	int n = strlen(s) - 1;
+	int n = strlen(s);
 	int signal = 0;
 	int i = 0;
 	int j = 0;
-	int k = 0;
-	char* temp = (char*)malloc(sizeof(char) * 30) ;
-	for (i = 0; i < n; i++) {
-		if (s[i] == '"') {
-			signal = 1;
-			i++;
-			k++;
-		}
-		if (k == 2) signal = 0;
+	char* temp = (char*)malloc(sizeof(char) * 30);
+	for (i = 4; i < n; i++) {
+		if (s[i] != ' ') { signal = 1; }
 		if (signal == 1) {
 			temp[j] = s[i];
 			j++;
@@ -301,10 +289,23 @@ char** parseSpace(char* line)
     return tokenArr;
 }
 
+//Ham chuan hoa bo dau "" va \n
 void Delete_invalidCharacter(char* s) {
-    int s_length = strlen(s) - 1;
-    if (s[s_length] == '\n')
-        s[s_length] = '\0';
+	int s_length = strlen(s) - 1;
+	int i = 0;
+	int j = 0;
+	int count = 0;
+	if (s[s_length] == '\n')
+		s[s_length] = '\0';
+	for (i = 0; i < s_length; i++) {
+		if (s[i] == '"') {
+			i++;
+			count++;
+		}
+		s[j] = s[i];
+		j++;
+	}
+	s[s_length - count] = '\0';
 }
  
 
